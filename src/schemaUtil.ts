@@ -1,5 +1,7 @@
 import {
+  GraphQLEnumType,
   GraphQLFieldMap,
+  GraphQLInputObjectType,
   GraphQLObjectType,
   GraphQLScalarType,
   GraphQLSchema,
@@ -87,4 +89,46 @@ export function getDeeperType(type: any, depth: number = 0): any {
     return getDeeperType(type.ofType, depth + 1);
   }
   return type;
+}
+
+export function getQueryArgFields(
+  parentName: string,
+  fieldMap: GraphQLFieldMap<any, any>
+): string[] {
+  return Object.entries(fieldMap)
+    .map(([name, field]) => {
+      const type = getDeeperType(field.type);
+      if (type instanceof GraphQLScalarType) {
+        return `${parentName}.${name}`;
+      } else if (type instanceof GraphQLInputObjectType) {
+        const objectArgsFields = getDeeperType(type).getFields();
+        const objectArgs = getQueryArgFields(
+          `${parentName}.${name}`,
+          objectArgsFields
+        );
+        return objectArgs;
+      } else if (type instanceof GraphQLEnumType) {
+        const enumValues = type.getValues();
+        return `${parentName}.${name}`;
+      } else {
+        return `${parentName}.${name}`;
+      }
+    })
+    .flat();
+}
+
+export function getQueryArgs(schema: GraphQLSchema, name: string): string[] {
+  const args = getQueryFields(schema, name).args;
+  return args
+    .map((arg: any) => {
+      const type = getDeeperType(arg.type);
+      if (type instanceof GraphQLScalarType) {
+        return arg.name;
+      } else if (type instanceof GraphQLInputObjectType) {
+        const objectArgsFields = getDeeperType(arg.type).getFields();
+        const objectArgs = getQueryArgFields(arg.name, objectArgsFields);
+        return objectArgs;
+      }
+    })
+    .flat();
 }
